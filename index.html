@@ -577,6 +577,30 @@
       </div>
     </div>
 
+    <!-- Location status bar -->
+    <div id="locBar" style="
+      display:flex; align-items:center; gap:10px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:8px; padding:12px 16px; margin-bottom:20px;
+      font-family:'Share Tech Mono',monospace; font-size:.78rem;
+    ">
+      <span id="locIcon" style="font-size:1.1rem;">📍</span>
+      <div style="flex:1;">
+        <div style="color:var(--text-muted);font-size:.65rem;letter-spacing:2px;margin-bottom:2px;">AUTO LOCATION</div>
+        <div id="locText" style="color:var(--text);">Detecting…</div>
+      </div>
+      <button onclick="fetchLocation()" style="
+        background:none; border:1px solid var(--border);
+        color:var(--text-muted); border-radius:4px;
+        padding:4px 10px; font-family:'Share Tech Mono',monospace;
+        font-size:.68rem; cursor:pointer; letter-spacing:1px;
+        transition:all .2s;
+      " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+         onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-muted)'">
+        ↺ REFRESH
+      </button>
+    </div>
+
     <div class="section-label">Data Columns</div>
 
     <div class="fields-grid">
@@ -659,6 +683,52 @@ let records    = [];
 let colHeaders = [];
 let rowCounter = 1;
 let editIdx    = -1;
+let currentLocation = null;  // { lat, lng, label }
+
+function fetchLocation() {
+  const locText = document.getElementById('locText');
+  const locIcon = document.getElementById('locIcon');
+  locText.textContent = 'Detecting…';
+  locIcon.textContent = '⏳';
+
+  if (!navigator.geolocation) {
+    locText.style.color = 'var(--danger)';
+    locText.textContent = 'Geolocation not supported';
+    locIcon.textContent = '✕';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude.toFixed(5);
+      const lng = pos.coords.longitude.toFixed(5);
+      currentLocation = { lat, lng, label: `${lat}, ${lng}` };
+      locIcon.textContent = '✅';
+      locText.style.color = 'var(--accent2)';
+      locText.textContent = `${lat}, ${lng}`;
+      // Try reverse geocode via browser-accessible API
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.display_name) {
+            const short = data.display_name.split(',').slice(0,3).join(',').trim();
+            currentLocation.label = short;
+            locText.textContent = short;
+          }
+        })
+        .catch(() => {}); // fallback to coords if reverse geocode fails
+    },
+    err => {
+      locIcon.textContent = '⚠';
+      locText.style.color = 'var(--danger)';
+      if (err.code === 1) locText.textContent = 'Permission denied — allow location access';
+      else if (err.code === 2) locText.textContent = 'Location unavailable';
+      else locText.textContent = 'Timeout — try refresh';
+      currentLocation = null;
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+}
 
 function save() {
   localStorage.setItem('sds_records', JSON.stringify(records));
@@ -677,6 +747,7 @@ function load() {
 load();
 updateSerialDisplay();
 renderTable();
+fetchLocation();
 
 function showResetConfirm() {
   document.getElementById('resetConfirm').style.display = 'block';
@@ -736,7 +807,8 @@ function submitEntry() {
     if (!colHeaders.includes(id)) colHeaders.push(id);
   });
 
-  records.push({ num: rowCounter, values: [...values] });
+  const loc = currentLocation ? currentLocation.label : '—';
+  records.push({ num: rowCounter, values: [...values], location: loc });
   rowCounter++;
   save();
 
@@ -759,7 +831,7 @@ function renderTable() {
   for (let i = 0; i < maxCols; i++) {
     thead.innerHTML += `<th>${colHeaders[i] || 'COL-' + String.fromCharCode(65 + i)}</th>`;
   }
-  thead.innerHTML += '<th>ACTION</th>';
+  thead.innerHTML += '<th>LOCATION</th><th>ACTION</th>';
 
   document.getElementById('recordCount').textContent = records.length;
 
@@ -775,6 +847,7 @@ function renderTable() {
     for (let i = 0; i < maxCols; i++) {
       cells += `<td>${rec.values[i] !== undefined ? rec.values[i] : '—'}</td>`;
     }
+    cells += `<td style="color:var(--text-muted);font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${rec.location || '—'}">${rec.location || '—'}</td>`;
     cells += `<td><div class="row-actions">
       <button class="edit-btn" onclick="openEdit(${idx})">✎ EDIT</button>
       <button class="del-btn"  onclick="deleteRecord(${idx})">✕ DEL</button>
@@ -842,10 +915,12 @@ function downloadExcel() {
   const maxCols = getMaxCols();
   const header  = ['#'];
   for (let i = 0; i < maxCols; i++) header.push(colHeaders[i] || `COL-${String.fromCharCode(65 + i)}`);
+  header.push('LOCATION');
 
   const rows = records.map(rec => {
     const row = [rec.num];
     for (let i = 0; i < maxCols; i++) row.push(rec.values[i] !== undefined ? rec.values[i] : '');
+    row.push(rec.location || '');
     return row;
   });
 
@@ -862,11 +937,11 @@ function downloadPDF() {
   const maxCols   = getMaxCols();
   const colLabels = [];
   for (let i = 0; i < maxCols; i++) colLabels.push(colHeaders[i] || `COL-${String.fromCharCode(65 + i)}`);
-  const headerRow = ['#', ...colLabels];
+  const headerRow = ['#', ...colLabels, 'LOCATION'];
 
   let tableRows = '';
   records.forEach((rec, idx) => {
-    const cells = [rec.num, ...Array.from({length: maxCols}, (_, i) => rec.values[i] !== undefined ? rec.values[i] : '—')];
+    const cells = [rec.num, ...Array.from({length: maxCols}, (_, i) => rec.values[i] !== undefined ? rec.values[i] : '—'), rec.location || '—'];
     const bg = idx % 2 === 0 ? '#1a2030' : '#111827';
     tableRows += `<tr style="background:${bg}">` +
       cells.map(c => `<td style="padding:8px 10px;border-bottom:1px solid #2a3340;font-family:monospace;font-size:11px;color:#e0e6f0;">${c}</td>`).join('') +
