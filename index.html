@@ -703,20 +703,9 @@ function fetchLocation() {
       const lat = pos.coords.latitude.toFixed(5);
       const lng = pos.coords.longitude.toFixed(5);
       currentLocation = { lat, lng, label: `${lat}, ${lng}` };
-      locIcon.textContent = '✅';
+      locIcon.textContent = '📍';
       locText.style.color = 'var(--accent2)';
       locText.textContent = `${lat}, ${lng}`;
-      // Try reverse geocode via browser-accessible API
-      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && data.display_name) {
-            const short = data.display_name.split(',').slice(0,3).join(',').trim();
-            currentLocation.label = short;
-            locText.textContent = short;
-          }
-        })
-        .catch(() => {}); // fallback to coords if reverse geocode fails
     },
     err => {
       locIcon.textContent = '⚠';
