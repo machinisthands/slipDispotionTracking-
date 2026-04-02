@@ -1,70 +1,906 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Sheet Generator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f8f9fa; padding: 20px; }
-        .container { max-width: 900px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .table-responsive { margin-top: 20px; }
-        .btn-group-actions { margin-top: 15px; display: flex; gap: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Serial Data Sheet</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --accent: #00e5ff;
+    --accent2: #39ff14;
+    --warn: #ffa500;
+    --danger: #ff4757;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Barlow', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,229,255,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,229,255,0.03) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page { display: none; position: relative; z-index: 1; min-height: 100vh; }
+  .page.active { display: block; }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.1rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo .dot {
+    width: 8px; height: 8px;
+    background: var(--accent2);
+    border-radius: 50%;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.4; transform:scale(0.7); }
+  }
+
+  nav { display: flex; gap: 8px; }
+
+  .nav-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .78rem;
+    padding: 6px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all .2s;
+  }
+
+  .nav-btn.active, .nav-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,255,.07);
+  }
+
+  /* PAGE 1 */
+  .entry-wrap {
+    max-width: 600px;
+    margin: 48px auto;
+    padding: 0 20px;
+  }
+
+  .section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+    opacity: .4;
+  }
+
+  .serial-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .serial-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .serial-display {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .serial-counter-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+
+  .serial-counter {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 2.2rem;
+    color: var(--accent2);
+    letter-spacing: 4px;
+    line-height: 1;
+  }
+
+  .reset-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid rgba(255,71,87,.4);
+    color: var(--danger);
+    border-radius: var(--radius);
+    padding: 6px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .reset-btn:hover { background: rgba(255,71,87,.12); transform: translateY(-1px); }
+
+  .serial-lock-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .65rem;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--accent2);
+    color: var(--accent2);
+    opacity: .7;
+  }
+
+  .fields-grid {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .field-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .75rem;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  .field-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 13px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .9rem;
+    color: var(--text);
+    width: 100%;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+
+  .field-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,229,255,.1);
+  }
+
+  .field-hint {
+    grid-column: 2;
+    font-size: .7rem;
+    color: var(--text-muted);
+    margin-top: -8px;
+  }
+
+  .preview-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 30px;
+  }
+
+  .chip {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .75rem;
+    padding: 4px 10px;
+    background: rgba(0,229,255,.08);
+    border: 1px solid rgba(0,229,255,.25);
+    border-radius: 20px;
+    color: var(--accent);
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent) 0%, #00b4d8 100%);
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .95rem;
+    letter-spacing: 3px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all .25s;
+  }
+
+  .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,229,255,.3); }
+  .submit-btn:active { transform: translateY(0); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: var(--surface2);
+    border: 1px solid var(--accent2);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .8rem;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    z-index: 9999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* PAGE 2 */
+  .sheet-wrap {
+    padding: 32px 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .sheet-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .sheet-info {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .8rem;
+    color: var(--text-muted);
+  }
+  .sheet-info span { color: var(--accent); }
+
+  .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .action-btn {
+    padding: 9px 18px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .78rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all .2s;
+  }
+
+  .btn-excel { border-color: var(--accent2); color: var(--accent2); background: rgba(57,255,20,.07); }
+  .btn-excel:hover { background: rgba(57,255,20,.15); transform: translateY(-1px); }
+
+  .btn-pdf { border-color: #ff6b6b; color: #ff6b6b; background: rgba(255,107,107,.07); }
+  .btn-pdf:hover { background: rgba(255,107,107,.15); transform: translateY(-1px); }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: auto;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-family: 'Share Tech Mono', monospace; font-size: .82rem; }
+
+  thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
+
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    color: var(--accent);
+    font-size: .72rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  th:first-child { color: var(--text-muted); }
+
+  tbody tr { border-bottom: 1px solid rgba(48,54,61,.5); transition: background .15s; animation: rowIn .25s ease; }
+  tbody tr:hover { background: rgba(0,229,255,.04); }
+  tbody tr:last-child { border-bottom: none; }
+
+  td { padding: 11px 16px; color: var(--text); white-space: nowrap; }
+  td:first-child { color: var(--text-muted); font-size: .8rem; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .85rem;
+    letter-spacing: 2px;
+  }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; opacity: .3; }
+
+  .row-actions { display: flex; gap: 6px; }
+
+  .edit-btn {
+    background: none;
+    border: 1px solid rgba(255,165,0,.4);
+    color: var(--warn);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .edit-btn:hover { background: rgba(255,165,0,.15); }
+
+  .del-btn {
+    background: none;
+    border: 1px solid rgba(255,71,87,.3);
+    color: var(--danger);
+    border-radius: 4px;
+    padding: 3px 9px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .del-btn:hover { background: rgba(255,71,87,.15); }
+
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* EDIT MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.72);
+    backdrop-filter: blur(4px);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 90%;
+    max-width: 480px;
+    position: relative;
+    animation: modalIn .25s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  @keyframes modalIn {
+    from { opacity:0; transform: scale(.92) translateY(20px); }
+    to   { opacity:1; transform: scale(1)   translateY(0); }
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 12px 12px 0 0;
+    background: linear-gradient(90deg, var(--warn), var(--accent));
+  }
+
+  .modal-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .85rem;
+    color: var(--warn);
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-serial-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    color: var(--text-muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+
+  .modal-fields { display: grid; gap: 12px; margin-bottom: 22px; }
+
+  .modal-field-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .modal-field-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    color: var(--text-muted);
+  }
+
+  .modal-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .88rem;
+    color: var(--text);
+    width: 100%;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .modal-input:focus { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(255,165,0,.1); }
+
+  .modal-btns { display: flex; gap: 10px; }
+
+  .modal-save {
+    flex: 1;
+    padding: 11px;
+    background: linear-gradient(135deg, var(--warn) 0%, #ff6b00 100%);
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .82rem;
+    letter-spacing: 2px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .modal-save:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,165,0,.3); }
+
+  .modal-cancel {
+    padding: 11px 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .82rem;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .modal-cancel:hover { border-color: var(--text-muted); color: var(--text); }
+
+  @media (max-width: 500px) {
+    .field-row { grid-template-columns: 1fr; }
+    .modal-field-row { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
 <body>
 
-<div class="container">
-    <h2 class="mb-4">Serial Data Entry</h2>
-    
-    <!-- Input Section -->
-    <div class="row g-3">
-        <div class="col-md-9">
-            <label for="dataInput" class="form-label">Type data (comma separated):</label>
-            <input type="text" id="dataInput" class="form-control" placeholder="e.g. asf, ash, jjgg">
-            <small class="text-muted">Example: inputting "apple, orange" creates columns for those items.</small>
+<header>
+  <div class="logo">
+    <div class="dot"></div>
+    SERIAL DATA SHEET
+  </div>
+  <nav>
+    <button class="nav-btn active" id="nav1" onclick="showPage(1)">[ ENTRY ]</button>
+    <button class="nav-btn" id="nav2" onclick="showPage(2)">[ SHEET ]</button>
+  </nav>
+</header>
+
+<!-- PAGE 1 -->
+<div class="page active" id="page1">
+  <div class="entry-wrap">
+
+    <div class="section-label">Next Entry</div>
+
+    <div class="serial-card">
+      <div class="serial-display">
+        <div>
+          <div class="serial-counter-label">RECORD #</div>
+          <div class="serial-counter" id="serialDisplay">1</div>
         </div>
-        <div class="col-md-3 d-flex align-items-end">
-            <button onclick="addData()" class="btn btn-primary w-100">Submit</button>
+        <div class="serial-lock-badge">AUTO</div>
+        <button class="reset-btn" id="resetBtn" onclick="showResetConfirm()">↺ RESET</button>
+      </div>
+      <div id="resetConfirm" style="display:none;margin-top:16px;padding:14px;background:rgba(255,71,87,.08);border:1px solid rgba(255,71,87,.3);border-radius:6px;">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.75rem;color:#ff4757;margin-bottom:12px;letter-spacing:1px;">
+          ⚠ Reset counter to 1? Existing records are kept.
         </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="confirmReset()" style="flex:1;padding:7px;background:#ff4757;border:none;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:.75rem;letter-spacing:1px;color:#fff;cursor:pointer;font-weight:bold;">YES, RESET</button>
+          <button onclick="cancelReset()" style="padding:7px 16px;background:transparent;border:1px solid #30363d;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:#7d8590;cursor:pointer;">CANCEL</button>
+        </div>
+      </div>
     </div>
 
-    <hr>
+    <div class="section-label">Data Columns</div>
 
-    <!-- Display Section -->
-    <h4>Data Sheet</h4>
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped" id="dataSheet">
-            <thead class="table-dark" id="tableHead">
-                <tr>
-                    <th>Serial Number</th>
-                    <th>Data 1</th>
-                    <th>Data 2</th>
-                    <th>Data 3</th>
-                    <th>Data 4</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                <!-- Data will appear here -->
-            </tbody>
-        </table>
+    <div class="fields-grid">
+      <div class="field-row">
+        <div class="field-label">COLUMNS</div>
+        <input class="field-input" id="columnsInput" type="text"
+               placeholder="val1, val2, val3  (comma separated)"
+               oninput="updatePreview()">
+        <div class="field-hint">Separate each column value with a comma ","</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-label">PREVIEW</div>
+        <div class="preview-chips" id="previewChips">
+          <span style="font-size:.75rem;color:var(--text-muted);font-family:'Share Tech Mono',monospace;">
+            type column values above…
+          </span>
+        </div>
+      </div>
     </div>
 
-    <!-- Actions -->
-    <div class="btn-group-actions">
-        <button onclick="downloadExcel()" class="btn btn-success">Download Excel</button>
-        <button onclick="downloadPDF()" class="btn btn-danger">Download PDF</button>
-        <button onclick="clearData()" class="btn btn-outline-secondary">Clear All Data</button>
-    </div>
+    <button class="submit-btn" onclick="submitEntry()">SUBMIT  →  SHEET</button>
+  </div>
 </div>
 
-<!-- Libraries -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+<!-- PAGE 2 -->
+<div class="page" id="page2">
+  <div class="sheet-wrap">
+
+    <div class="sheet-toolbar">
+      <div class="sheet-info">RECORDS: <span id="recordCount">0</span></div>
+      <div class="action-btns">
+        <button class="action-btn btn-excel" onclick="downloadExcel()">⬇ EXCEL</button>
+        <button class="action-btn btn-pdf"   onclick="downloadPDF()">⬇ PDF</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr id="tableHead">
+            <th>#</th>
+            <th>ACTION</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="99">
+            <div class="empty-state">
+              <div class="icon">◫</div>
+              NO DATA YET — SUBMIT FROM ENTRY PAGE
+            </div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">
+      ✎ EDIT RECORD
+      <span class="modal-serial-badge" id="editSerialBadge">#1</span>
+    </div>
+    <div class="modal-fields" id="editFields"></div>
+    <div class="modal-btns">
+      <button class="modal-save"   onclick="saveEdit()">SAVE CHANGES</button>
+      <button class="modal-cancel" onclick="closeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
 
 <script>
-    // 1. JS Logic starts here
+let records    = [];
+let colHeaders = [];
+let rowCounter = 1;
+let editIdx    = -1;
+
+function save() {
+  localStorage.setItem('sds_records', JSON.stringify(records));
+  localStorage.setItem('sds_counter', rowCounter);
+  localStorage.setItem('sds_cols',    JSON.stringify(colHeaders));
+}
+
+function load() {
+  try {
+    records    = JSON.parse(localStorage.getItem('sds_records') || '[]');
+    rowCounter = parseInt(localStorage.getItem('sds_counter')  || '1');
+    colHeaders = JSON.parse(localStorage.getItem('sds_cols')   || '[]');
+  } catch(e) {}
+}
+
+load();
+updateSerialDisplay();
+renderTable();
+
+function showResetConfirm() {
+  document.getElementById('resetConfirm').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'none';
+}
+
+function cancelReset() {
+  document.getElementById('resetConfirm').style.display = 'none';
+  document.getElementById('resetBtn').style.display = '';
+}
+
+function confirmReset() {
+  rowCounter = 1;
+  save();
+  updateSerialDisplay();
+  cancelReset();
+  showToast('COUNTER RESET TO 1 ✓', '#ff4757');
+}
+
+function updateSerialDisplay() {
+  document.getElementById('serialDisplay').textContent = rowCounter;
+}
+
+function showPage(n) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page' + n).classList.add('active');
+  document.getElementById('nav'  + n).classList.add('active');
+  if (n === 2) renderTable();
+}
+
+function updatePreview() {
+  const parts = document.getElementById('columnsInput').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const wrap = document.getElementById('previewChips');
+  wrap.innerHTML = '';
+  if (!parts.length) {
+    wrap.innerHTML = '<span style="font-size:.75rem;color:var(--text-muted);font-family:\'Share Tech Mono\',monospace;">type column values above…</span>';
+    return;
+  }
+  parts.forEach(p => {
+    const c = document.createElement('div');
+    c.className = 'chip';
+    c.textContent = p;
+    wrap.appendChild(c);
+  });
+}
+
+function submitEntry() {
+  const values = document.getElementById('columnsInput').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!values.length) { showToast('⚠ ADD COLUMN VALUES', '#ff4757'); return; }
+
+  values.forEach((_, i) => {
+    const id = `COL-${String.fromCharCode(65 + i)}`;
+    if (!colHeaders.includes(id)) colHeaders.push(id);
+  });
+
+  records.push({ num: rowCounter, values: [...values] });
+  rowCounter++;
+  save();
+
+  document.getElementById('columnsInput').value = '';
+  updatePreview();
+  updateSerialDisplay();
+  showToast('SUBMITTED ✓');
+}
+
+function getMaxCols() {
+  return records.reduce((m, r) => Math.max(m, r.values.length), 0);
+}
+
+function renderTable() {
+  const thead = document.getElementById('tableHead');
+  const tbody = document.getElementById('tableBody');
+  const maxCols = getMaxCols();
+
+  thead.innerHTML = '<th>#</th>';
+  for (let i = 0; i < maxCols; i++) {
+    thead.innerHTML += `<th>${colHeaders[i] || 'COL-' + String.fromCharCode(65 + i)}</th>`;
+  }
+  thead.innerHTML += '<th>ACTION</th>';
+
+  document.getElementById('recordCount').textContent = records.length;
+
+  if (!records.length) {
+    tbody.innerHTML = `<tr><td colspan="99"><div class="empty-state"><div class="icon">◫</div>NO DATA YET — SUBMIT FROM ENTRY PAGE</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  records.forEach((rec, idx) => {
+    const tr = document.createElement('tr');
+    let cells = `<td>${rec.num}</td>`;
+    for (let i = 0; i < maxCols; i++) {
+      cells += `<td>${rec.values[i] !== undefined ? rec.values[i] : '—'}</td>`;
+    }
+    cells += `<td><div class="row-actions">
+      <button class="edit-btn" onclick="openEdit(${idx})">✎ EDIT</button>
+      <button class="del-btn"  onclick="deleteRecord(${idx})">✕ DEL</button>
+    </div></td>`;
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+}
+
+function deleteRecord(idx) {
+  records.splice(idx, 1);
+  save();
+  renderTable();
+  showToast('RECORD DELETED', '#ff4757');
+}
+
+function openEdit(idx) {
+  editIdx = idx;
+  const rec = records[idx];
+  const maxCols = getMaxCols();
+
+  document.getElementById('editSerialBadge').textContent = '#' + rec.num;
+
+  const fieldsEl = document.getElementById('editFields');
+  fieldsEl.innerHTML = '';
+  for (let i = 0; i < maxCols; i++) {
+    const label = colHeaders[i] || `COL-${String.fromCharCode(65 + i)}`;
+    const val   = rec.values[i] !== undefined ? rec.values[i] : '';
+    fieldsEl.innerHTML += `
+      <div class="modal-field-row">
+        <div class="modal-field-label">${label}</div>
+        <input class="modal-input" id="ef_${i}" value="${val}" placeholder="—">
+      </div>`;
+  }
+
+  document.getElementById('editModal').classList.add('open');
+}
+
+function saveEdit() {
+  if (editIdx < 0) return;
+  const maxCols   = getMaxCols();
+  const newValues = [];
+  for (let i = 0; i < maxCols; i++) {
+    const el = document.getElementById('ef_' + i);
+    newValues.push(el ? el.value.trim() : (records[editIdx].values[i] || ''));
+  }
+  records[editIdx].values = newValues;
+  save();
+  closeModal();
+  renderTable();
+  showToast('UPDATED ✓', 'var(--warn)');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editIdx = -1;
+}
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function downloadExcel() {
+  if (!records.length) { showToast('NO DATA TO EXPORT', '#ff4757'); return; }
+  const maxCols = getMaxCols();
+  const header  = ['#'];
+  for (let i = 0; i < maxCols; i++) header.push(colHeaders[i] || `COL-${String.fromCharCode(65 + i)}`);
+
+  const rows = records.map(rec => {
+    const row = [rec.num];
+    for (let i = 0; i < maxCols; i++) row.push(rec.values[i] !== undefined ? rec.values[i] : '');
+    return row;
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = header.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Serial Data');
+  XLSX.writeFile(wb, 'serial_data_sheet.xlsx');
+  showToast('EXCEL DOWNLOADED ✓', 'var(--accent2)');
+}
+
+function downloadPDF() {
+  if (!records.length) { showToast('NO DATA TO EXPORT', '#ff4757'); return; }
+  const maxCols   = getMaxCols();
+  const colLabels = [];
+  for (let i = 0; i < maxCols; i++) colLabels.push(colHeaders[i] || `COL-${String.fromCharCode(65 + i)}`);
+  const headerRow = ['#', ...colLabels];
+
+  let tableRows = '';
+  records.forEach((rec, idx) => {
+    const cells = [rec.num, ...Array.from({length: maxCols}, (_, i) => rec.values[i] !== undefined ? rec.values[i] : '—')];
+    const bg = idx % 2 === 0 ? '#1a2030' : '#111827';
+    tableRows += `<tr style="background:${bg}">` +
+      cells.map(c => `<td style="padding:8px 10px;border-bottom:1px solid #2a3340;font-family:monospace;font-size:11px;color:#e0e6f0;">${c}</td>`).join('') +
+      '</tr>';
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Serial Data Sheet</title>
+  <style>
+    body{margin:0;padding:24px;background:#0d1117;color:#e6edf3;font-family:monospace;}
+    h1{font-size:18px;color:#00e5ff;letter-spacing:3px;margin-bottom:4px;}
+    .sub{font-size:11px;color:#7d8590;margin-bottom:20px;}
+    table{width:100%;border-collapse:collapse;}
+    th{background:#161b22;padding:9px 10px;text-align:left;font-size:10px;color:#00e5ff;letter-spacing:2px;border-bottom:2px solid #00e5ff44;}
+  </style></head><body>
+  <h1>◧ SERIAL DATA SHEET</h1>
+  <div class="sub">EXPORTED: ${new Date().toLocaleString()} &nbsp;|&nbsp; RECORDS: ${records.length}</div>
+  <table><thead><tr>${headerRow.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.print();
+  showToast('PDF OPENED FOR PRINT ✓', '#ff6b6b');
+}
+
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent       = msg;
+  t.style.borderColor = color || 'var(--accent2)';
+  t.style.color       = color || 'var(--accent2)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
 </script>
 </body>
 </html>
